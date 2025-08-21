@@ -1,0 +1,149 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum MatchStatus {
+  SCHEDULED
+  PLAYED
+}
+
+enum Position {
+  GK
+  DF
+  MF
+  FW
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+  clubs     Club[]
+}
+
+model League {
+  id       String    @id @default(cuid())
+  name     String
+  tier     Int
+  country  String
+  clubs    Club[]
+  fixtures Fixture[]
+}
+
+model Club {
+  id            String            @id @default(cuid())
+  user          User?             @relation(fields: [userId], references: [id])
+  userId        String?
+  league        League?           @relation(fields: [leagueId], references: [id])
+  leagueId      String?
+  name          String
+  budget        Int               @default(1000)
+  reputation    Int               @default(50)
+  tactic        Tactic?
+  players       Player[]
+  homeMatches   Fixture[]         @relation("HomeClub")
+  awayMatches   Fixture[]         @relation("AwayClub")
+  listings      TransferListing[]
+  bids          Bid[]
+  trainingPlans TrainingPlan[]
+}
+
+model Player {
+  id              String           @id @default(cuid())
+  club            Club?            @relation(fields: [clubId], references: [id])
+  clubId          String?
+  age             Int
+  pos             Position
+  ovr             Int
+  pot             Int
+  stamina         Int
+  pace            Int
+  pass            Int
+  shoot           Int
+  defend          Int
+  gk              Int
+  morale          Int              @default(50)
+  personality     String           @default("PROFESSIONAL")
+  wages           Int              @default(10)
+  contractUntil   Int              @default(2030)
+  transferListing TransferListing?
+
+  @@index([clubId])
+}
+
+model Tactic {
+  id        String @id @default(cuid())
+  club      Club   @relation(fields: [clubId], references: [id])
+  clubId    String @unique
+  formation String
+  styleJson Json
+}
+
+model TrainingPlan {
+  id        String @id @default(cuid())
+  club      Club   @relation(fields: [clubId], references: [id])
+  clubId    String
+  week      Int
+  focusJson Json
+
+  @@unique([clubId, week])
+}
+
+model Fixture {
+  id         String      @id @default(cuid())
+  league     League      @relation(fields: [leagueId], references: [id])
+  leagueId   String
+  round      Int
+  kickoffAt  DateTime
+  status     MatchStatus @default(SCHEDULED)
+  homeClub   Club        @relation("HomeClub", fields: [homeClubId], references: [id])
+  homeClubId String
+  awayClub   Club        @relation("AwayClub", fields: [awayClubId], references: [id])
+  awayClubId String
+  match      Match?
+
+  @@index([leagueId, round])
+}
+
+model Match {
+  id         String  @id @default(cuid())
+  fixture    Fixture @relation(fields: [fixtureId], references: [id])
+  fixtureId  String  @unique
+  seed       Int
+  resultJson Json
+  eventsJson Json
+  xgHome     Float   @default(0)
+  xgAway     Float   @default(0)
+}
+
+model TransferListing {
+  id        String   @id @default(cuid())
+  player    Player   @relation(fields: [playerId], references: [id])
+  playerId  String   @unique
+  club      Club     @relation(fields: [clubId], references: [id])
+  clubId    String
+  askPrice  Int
+  expiresAt DateTime
+  status    String   @default("OPEN")
+
+  bids Bid[]
+}
+
+model Bid {
+  id        String          @id @default(cuid())
+  listing   TransferListing @relation(fields: [listingId], references: [id])
+  listingId String
+  club      Club            @relation(fields: [clubId], references: [id])
+  clubId    String
+  amount    Int
+  createdAt DateTime        @default(now())
+
+  @@index([listingId])
+}
