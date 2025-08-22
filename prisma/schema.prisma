@@ -8,6 +8,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+generator seed {
+  provider = "prisma-client-js"
+}
+
 enum MatchStatus {
   SCHEDULED
   PLAYED
@@ -59,6 +63,7 @@ model Player {
   id              String           @id @default(cuid())
   club            Club?            @relation(fields: [clubId], references: [id])
   clubId          String?
+  name            String           @default("Unnamed") // 👈 nytt
   age             Int
   pos             Position
   ovr             Int
@@ -73,7 +78,7 @@ model Player {
   personality     String           @default("PROFESSIONAL")
   wages           Int              @default(10)
   contractUntil   Int              @default(2030)
-  transferListing TransferListing?
+  TransferListing TransferListing?
 
   @@index([clubId])
 }

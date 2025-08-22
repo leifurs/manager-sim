@@ -27,6 +27,7 @@ export default function Navbar() {
           <NavLink href="/fixtures">Matcher</NavLink>
           <NavLink href="/table">Tabell</NavLink>
           <NavLink href="/fixtures/rounds">Omgångar</NavLink>
+          <NavLink href="/stats/scorers">Skytteliga</NavLink>
         </div>
         <ThemeToggle />
       </nav>

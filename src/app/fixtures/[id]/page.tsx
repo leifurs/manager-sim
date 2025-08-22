@@ -32,7 +32,7 @@ function Scoreboard({ home, away, res }: { home: string; away: string; res: { ho
   )
 }
 
-function EventList({ events }: { events: Array<{ minute: number; type: string; team: "HOME" | "AWAY" }> }) {
+function EventList({ events }: { events: Array<{ minute: number; type: string; team: "HOME" | "AWAY"; playerName?: string }> }) {
   if (!events?.length) return <p className="text-sm text-zinc-500">Inga händelser.</p>
   const Tag = ({ t }: { t: "HOME" | "AWAY" }) => <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold ${t === "HOME" ? "bg-blue-600 text-white" : "bg-rose-600 text-white"}`}>{t === "HOME" ? "HEMMA" : "BORTA"}</span>
   return (
@@ -42,7 +42,14 @@ function EventList({ events }: { events: Array<{ minute: number; type: string; t
         .sort((a, b) => a.minute - b.minute)
         .map((e, i) => (
           <li key={`${e.team}-${e.minute}-${i}`} className="text-sm">
-            <span className="tabular-nums">{e.minute}'</span> – {e.type} <Tag t={e.team} />
+            <span className="tabular-nums">{e.minute}'</span> – {e.type}
+            {e.playerName ? (
+              <>
+                {" "}
+                – <b>{e.playerName}</b>
+              </>
+            ) : null}{" "}
+            <Tag t={e.team} />
           </li>
         ))}
     </ul>
