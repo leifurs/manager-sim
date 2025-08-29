@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import ThemeToggle from "@/components/ThemeToggle"
+import InjuryProfileChip from "@/components/InjuryProfileChip"
 
 function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
   const pathname = usePathname()
@@ -28,6 +29,9 @@ export default function Navbar() {
           <NavLink href="/table">Tabell</NavLink>
           <NavLink href="/fixtures/rounds">Omgångar</NavLink>
           <NavLink href="/stats/scorers">Skytteliga</NavLink>
+          <NavLink href="/stats/assists">Assistliga</NavLink>
+          <NavLink href="/stats/keepers">Hållna nollor (efter nollmatcher)</NavLink>
+          <NavLink href="/stats/discipline">Gula/röda kort</NavLink>
         </div>
         <ThemeToggle />
       </nav>

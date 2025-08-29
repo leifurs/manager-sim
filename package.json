@@ -16,7 +16,7 @@
     "db:seed": "tsx prisma/seed.ts"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "node prisma/seed.cjs"
   },
   "dependencies": {
     "@prisma/client": "6.14.0",

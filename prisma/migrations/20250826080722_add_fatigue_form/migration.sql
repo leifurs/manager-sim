@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "public"."Player" ADD COLUMN     "fatigue" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "form" DOUBLE PRECISION NOT NULL DEFAULT 0;

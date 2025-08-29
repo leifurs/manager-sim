@@ -1,9 +1,9 @@
-// prisma/seed.ts
-import { PrismaClient, Position } from "@prisma/client"
+// prisma/seed.cjs
+const { PrismaClient, Position } = require("@prisma/client")
 const prisma = new PrismaClient()
 
-// --- Enkel deterministisk RNG (mulberry32)
-function mulberry32(a: number) {
+// --- RNG helpers ---
+function mulberry32(a) {
   return function () {
     let t = (a += 0x6d2b79f5)
     t = Math.imul(t ^ (t >>> 15), t | 1)
@@ -11,31 +11,42 @@ function mulberry32(a: number) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
-function randInt(rng: () => number, min: number, max: number) {
+function randInt(rng, min, max) {
   return Math.floor(rng() * (max - min + 1)) + min
 }
-function pick<T>(rng: () => number, arr: T[]) {
+function pick(rng, arr) {
   return arr[Math.floor(rng() * arr.length)]
 }
 
-// --- Data
+// --- Data ---
 const CLUB_NAMES = ["Northbridge FC", "Riverside United", "Steelworks", "Harbor Town", "Aurora SC", "Royal Oaks", "Bluefield", "Old Mill", "Kingsport", "Red Valley"]
-
 const FIRST = ["Liam", "Noah", "Oliver", "Elijah", "William", "James", "Benjamin", "Lucas", "Henry", "Alexander", "Leo", "Oscar", "Hugo", "Axel", "Elias", "Arvid", "Ludvig", "Nils", "Alfred", "Viggo"]
-const LAST = ["Johansson", "Andersson", "Karlsson", "Nilsson", "Eriksson", "Larsson", "Olsson", "Persson", "Svensson", "Gustafsson", "Pettersson", "Jonsson", "Jansson", "Hansson", "Bengtsson", "Jörgensen", "Lindberg", "Lundberg", "Lundin", "Holm"]
+const LAST = ["Johansson", "Andersson", "Karlsson", "Nilsson", "Eriksson", "Larsson", "Olsson", "Persson", "Svensson", "Gustafsson", "Pettersson", "Jonsson", "Jansson", "Hansson", "Bengtsson", "Lindberg", "Lundberg", "Lundin", "Holm", "Dahl"]
+
+// Sub-positions (ingen TS-typ behövs i CJS)
+const SUB_DIST = {
+  GK: ["GK"],
+  DF: ["CB", "CB", "CB", "LB", "RB"],
+  MF: ["CM", "CM", "CM", "DM", "AM"],
+  FW: ["ST", "ST", "LW", "RW"]
+}
+function pickSub(rng, main) {
+  const bucket = SUB_DIST[main]
+  return bucket[Math.floor(rng() * bucket.length)]
+}
 
 async function main() {
   const rng = mulberry32(42)
   const SEASON = 1
 
-  // 1) Liga (unique på name+tier+country i schema)
+  // 1) League (kräver @@unique([name, tier, country]) i schema)
   const league = await prisma.league.upsert({
     where: { name_tier_country: { name: "Division 1", tier: 1, country: "SE" } },
     update: {},
     create: { name: "Division 1", tier: 1, country: "SE" }
   })
 
-  // 2) Klubbar + spelare + taktik
+  // 2) Clubs + Players + Tactics
   const clubs = []
   for (const name of CLUB_NAMES) {
     const club = await prisma.club.upsert({
@@ -45,16 +56,15 @@ async function main() {
     })
     clubs.push(club)
 
-    // Skapa spelare om tomt
     const hasPlayers = await prisma.player.count({ where: { clubId: club.id } })
     if (hasPlayers === 0) {
-      const dist: Record<Position, number> = {
+      const dist = {
         [Position.GK]: 2,
         [Position.DF]: 7,
         [Position.MF]: 8,
         [Position.FW]: 5
       }
-      const players: any[] = []
+      const players = []
       const positions = [Position.GK, Position.DF, Position.MF, Position.FW]
 
       for (const pos of positions) {
@@ -64,7 +74,7 @@ async function main() {
           const pot = Math.min(99, ovr + randInt(rng, 2, 10))
           const first = pick(rng, FIRST)
           const last = pick(rng, LAST)
-          const mainPos = pos as "GK" | "DF" | "MF" | "FW"
+          const mainPos = pos // "GK"|"DF"|"MF"|"FW"
           players.push({
             clubId: club.id,
             name: `${first} ${last}`,
@@ -81,7 +91,6 @@ async function main() {
             gk: pos === Position.GK ? randInt(rng, 50, 90) : randInt(rng, 1, 20),
             wages: randInt(rng, 5, 20),
             contractUntil: 2030,
-            // nya fält
             fatigue: 0,
             form: 0
           })
@@ -89,34 +98,34 @@ async function main() {
       }
       await prisma.player.createMany({ data: players })
 
-      // Grundtaktik om saknas
       await prisma.tactic.upsert({
         where: { clubId: club.id },
         update: {},
-        create: {
-          clubId: club.id,
-          formation: "4-3-3",
-          styleJson: { tempo: 0.5, press: 0.5, line: 0.5 }
-        }
+        create: { clubId: club.id, formation: "4-3-3", styleJson: { tempo: 0.5, press: 0.5, line: 0.5 } }
+      })
+    }
+
+    // Backfill subPos om fel (t.ex. default GK)
+    const bad = await prisma.player.findMany({
+      where: {
+        clubId: club.id,
+        OR: [
+          { pos: { in: ["DF", "MF", "FW"] }, subPos: "GK" },
+          { pos: "GK", NOT: { subPos: "GK" } }
+        ]
+      },
+      select: { id: true, pos: true }
+    })
+    for (const p of bad) {
+      const mainPos = p.pos
+      await prisma.player.update({
+        where: { id: p.id },
+        data: { subPos: pickSub(rng, mainPos) }
       })
     }
   }
 
-  type Sub = "GK" | "CB" | "LB" | "RB" | "CM" | "DM" | "AM" | "ST" | "LW" | "RW"
-
-  // vikter per huvudposition
-  const SUB_DIST: Record<"GK" | "DF" | "MF" | "FW", Sub[]> = {
-    GK: ["GK"],
-    DF: ["CB", "CB", "CB", "LB", "RB"], // ~3 CB, 1 LB, 1 RB
-    MF: ["CM", "CM", "CM", "DM", "AM"], // CM vanligast
-    FW: ["ST", "ST", "LW", "RW"] // ST vanligast
-  }
-  function pickSub(rng: () => number, main: "GK" | "DF" | "MF" | "FW"): Sub {
-    const bucket = SUB_DIST[main]
-    return bucket[Math.floor(rng() * bucket.length)]
-  }
-
-  // 3) Fixtures säsong 1 (skapa bara om inga finns)
+  // 3) Fixtures – season 1 (skapa bara om saknas)
   const fxCount = await prisma.fixture.count({ where: { leagueId: league.id, season: SEASON } })
   if (fxCount === 0) {
     const n = clubs.length
@@ -128,7 +137,7 @@ async function main() {
     for (let r = 0; r < rounds; r++) {
       for (let i = 0; i < home.length; i++) {
         const kickoff = new Date(start.getTime())
-        kickoff.setDate(kickoff.getDate() + r * 7) // en omgång/vecka
+        kickoff.setDate(kickoff.getDate() + r * 7)
         await prisma.fixture.create({
           data: {
             leagueId: league.id,
@@ -140,7 +149,6 @@ async function main() {
           }
         })
       }
-      // round-robin rotation (circle method)
       if (n > 2) {
         const fixed = home[0]
         const movedFromHome = home.splice(1, 1)[0]

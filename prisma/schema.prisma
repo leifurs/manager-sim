@@ -8,10 +8,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-generator seed {
-  provider = "prisma-client-js"
-}
-
 enum MatchStatus {
   SCHEDULED
   PLAYED
@@ -39,12 +35,12 @@ model League {
   country  String
   clubs    Club[]
   fixtures Fixture[]
+
+  @@unique([name, tier, country]) // undvik dubbla ligor
 }
 
 model Club {
   id            String            @id @default(cuid())
-  user          User?             @relation(fields: [userId], references: [id])
-  userId        String?
   league        League?           @relation(fields: [leagueId], references: [id])
   leagueId      String?
   name          String
@@ -57,18 +53,38 @@ model Club {
   listings      TransferListing[]
   bids          Bid[]
   trainingPlans TrainingPlan[]
+  User          User?             @relation(fields: [userId], references: [id])
+  userId        String?
+
+  @@unique([leagueId, name]) // undvik dubbla klubbar i samma liga
+}
+
+enum SubPosition {
+  GK
+  CB
+  LB
+  RB
+  CM
+  DM
+  AM
+  ST
+  LW
+  RW
 }
 
 model Player {
   id              String           @id @default(cuid())
   club            Club?            @relation(fields: [clubId], references: [id])
   clubId          String?
-  name            String           @default("Unnamed") // 👈 nytt
+  name            String           @default("Unnamed")
   age             Int
   pos             Position
+  subPos          SubPosition      @default(GK)
   ovr             Int
   pot             Int
   stamina         Int
+  fatigue         Int              @default(0)
+  form            Float            @default(0)
   pace            Int
   pass            Int
   shoot           Int
@@ -105,6 +121,7 @@ model Fixture {
   id         String      @id @default(cuid())
   league     League      @relation(fields: [leagueId], references: [id])
   leagueId   String
+  season     Int         @default(1)
   round      Int
   kickoffAt  DateTime
   status     MatchStatus @default(SCHEDULED)
@@ -114,13 +131,14 @@ model Fixture {
   awayClubId String
   match      Match?
 
-  @@index([leagueId, round])
+  @@index([leagueId, season, round])
 }
 
 model Match {
   id         String  @id @default(cuid())
   fixture    Fixture @relation(fields: [fixtureId], references: [id])
   fixtureId  String  @unique
+  season     Int     @default(1)
   seed       Int
   resultJson Json
   eventsJson Json
