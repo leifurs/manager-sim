@@ -29,14 +29,18 @@ model User {
 }
 
 model League {
-  id       String    @id @default(cuid())
-  name     String
-  tier     Int
-  country  String
-  clubs    Club[]
-  fixtures Fixture[]
+  id               String    @id @default(cuid())
+  name             String
+  tier             Int
+  country          String
+  clubs            Club[]
+  fixtures         Fixture[]
+  currentSeason    Int       @default(1)
+  nextRound        Int       @default(1)
+  nextSimAt        DateTime?
+  lineupCutoffMins Int       @default(30)
 
-  @@unique([name, tier, country]) // undvik dubbla ligor
+  @@unique([name, tier, country])
 }
 
 model Club {
@@ -56,7 +60,7 @@ model Club {
   User          User?             @relation(fields: [userId], references: [id])
   userId        String?
 
-  @@unique([leagueId, name]) // undvik dubbla klubbar i samma liga
+  @@unique([leagueId, name])
 }
 
 enum SubPosition {

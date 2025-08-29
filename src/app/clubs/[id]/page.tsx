@@ -9,6 +9,9 @@ import Toast from "@/components/Toast"
 import FormationBoard from "@/components/FormationBoard"
 import { getCurrentInjuriesForClub } from "@/lib/injuries"
 import type { ReactElement } from "react"
+import { canEditLineupNow } from "@/lib/lineupLock"
+import { auth } from "@/lib/auth"
+import { takeOverClub } from "@/app/clubs/actions"
 
 // Next 15: params är asynk – vänta in dem innan användning
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -33,6 +36,7 @@ function parseLineup(style: any): Partial<Record<"GK" | "DF" | "MF" | "FW", stri
 
 export default async function ClubDetail({ params }: { params: Promise<{ id: string }> }): Promise<ReactElement> {
   const { id } = await params
+  const session = await auth()
 
   const club = await prisma.club.findUnique({
     where: { id },
@@ -49,7 +53,15 @@ export default async function ClubDetail({ params }: { params: Promise<{ id: str
       </div>
     )
   }
-
+  {
+    session?.user && (
+      <form action={takeOverClub.bind(null, club.id)}>
+        <button type="submit" className="rounded-md border px-3 py-1.5 text-sm shadow-sm hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-900">
+          Ta över klubb
+        </button>
+      </form>
+    )
+  }
   // Hämta skador efter att vi vet klubbens id
   const injuries = await getCurrentInjuriesForClub(id)
 
@@ -72,6 +84,7 @@ export default async function ClubDetail({ params }: { params: Promise<{ id: str
 
   const lineup = parseLineup(club.tactic?.styleJson ?? null)
   const currentFormation = club.tactic?.formation ?? "4-3-3"
+  const canEdit = await canEditLineupNow(club.id)
 
   return (
     <div className="space-y-6">
@@ -107,8 +120,13 @@ export default async function ClubDetail({ params }: { params: Promise<{ id: str
 
       {players.length > 0 && (
         <section className="space-y-2">
-          <h2 className="font-semibold">Formation board (drag & drop)</h2>
-          <FormationBoard clubId={club.id} formation={currentFormation} players={players} initialGroups={lineup ?? undefined} />
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Formation board (drag & drop)</h2>
+            {!canEdit && <span className="text-xs rounded bg-amber-100 px-2 py-0.5 text-amber-800">Låst inför match</span>}
+          </div>
+          <div className={canEdit ? "" : "pointer-events-none opacity-60"}>
+            <FormationBoard clubId={club.id} formation={currentFormation} players={players} initialGroups={lineup ?? undefined} />
+          </div>
         </section>
       )}
 
